@@ -343,3 +343,207 @@ async function uploadPDF() {
     pdfStatus.className = 'text-sm text-red-600';
   }
 }
+
+document.getElementById("quizInputType").addEventListener("change", e => {
+  const container = document.getElementById("quizInputFields");
+  const type = e.target.value;
+
+  const fields = {
+    text: `<textarea id="quizText" class="w-full p-2 border rounded-md h-32" placeholder="Paste study notes..."></textarea>`,
+    audio: `<input type="file" id="quizAudio" accept="audio/*" class="w-full border p-2 rounded-md" />`,
+    image: `<input type="file" id="quizImage" accept="image/*" class="w-full border p-2 rounded-md" />`,
+    pdf: `<input type="file" id="quizPDF" accept="application/pdf" class="w-full border p-2 rounded-md" />`
+  };
+
+  container.innerHTML = fields[type] || '';
+});
+
+// Global Quiz Variables
+let quizFlashcards = [];
+let quizIndex = 0;
+let correctCount = 0;
+let wrongCount = 0;
+
+async function startQuizFromInput() {
+  const type = document.getElementById("quizInputType").value;
+  const flashcardTextInput = async () => document.getElementById("quizText").value.trim();
+
+  const flashcardAudioInput = async () => {
+    const file = document.getElementById("quizAudio").files[0];
+    const formData = new FormData();
+    formData.append('audio', file);
+    const res = await fetch('/transcribe_audio', { method: 'POST', body: formData });
+    const data = await res.json();
+    return data.transcript || '';
+  };
+
+  const flashcardImageInput = async () => {
+    const file = document.getElementById("quizImage").files[0];
+    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    return text;
+  };
+
+  const flashcardPDFInput = async () => {
+    const file = document.getElementById("quizPDF").files[0];
+    const reader = new FileReader();
+    return await new Promise(resolve => {
+      reader.onload = async function () {
+        const typedArray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        let text = '';
+        for (let i = 1; i <= Math.min(10, pdf.numPages); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        resolve(text);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  let rawText = '';
+  try {
+    if (type === 'text') rawText = await flashcardTextInput();
+    if (type === 'audio') rawText = await flashcardAudioInput();
+    if (type === 'image') rawText = await flashcardImageInput();
+    if (type === 'pdf') rawText = await flashcardPDFInput();
+  } catch (err) {
+    alert("Failed to extract text. Try again.");
+    return;
+  }
+
+  if (!rawText.trim()) {
+    alert("Input is empty or invalid.");
+    return;
+  }
+
+  // Generate flashcards from extracted text
+  const res = await fetch('/generate_flashcards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: rawText })
+  });
+  const result = await res.json();
+  if (result.status !== 'success' || result.flashcards.length === 0) {
+    alert("Could not generate flashcards. Try with better input.");
+    return;
+  }
+
+  quizFlashcards = result.flashcards;
+  quizIndex = 0;
+  correctCount = 0;
+  wrongCount = 0;
+  showNextQuizCard();
+  document.getElementById("quizModal").classList.remove("hidden");
+}
+
+// ... (all your functions up to showNextQuizCard stay the same)
+
+function showNextQuizCard() {
+  if (quizIndex >= quizFlashcards.length) {
+    const suggestions = wrongCount > 0
+      ? `🧐 Focus on reviewing the topics you missed. Try rephrasing your answers to check understanding.`
+      : `🎉 Excellent work! You answered everything correctly.`;
+
+    document.getElementById("quizModal").innerHTML = `
+      <div class="bg-white rounded-xl p-6 max-w-xl w-full text-center">
+        <h2 class="text-2xl font-bold text-green-700 mb-4">📊 Quiz Completed</h2>
+        <p class="text-lg text-gray-800 mb-2">✅ Correct: ${correctCount}</p>
+        <p class="text-lg text-gray-800 mb-4">❌ Incorrect: ${wrongCount}</p>
+        <p class="text-gray-600 mb-4">${suggestions}</p>
+        
+        <div class="flex justify-center gap-4">
+          <button onclick="generateQuizReport()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+            📄 Download Report
+          </button>
+          <button onclick="closeQuiz()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Close
+          </button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const card = quizFlashcards[quizIndex];
+  document.getElementById("quizQuestion").textContent = card.question;
+  document.getElementById("quizProgress").textContent = `Question ${quizIndex + 1} of ${quizFlashcards.length}`;
+  document.getElementById("userAnswer").value = '';
+}
+
+async function submitQuizAnswer() {
+  const userAnswer = document.getElementById("userAnswer").value.trim();
+  const correctAnswer = quizFlashcards[quizIndex].answer;
+
+  // Evaluate via backend
+  const res = await fetch('/evaluate_answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_answer: userAnswer, correct_answer: correctAnswer })
+  });
+
+  const result = await res.json();
+
+  // Save for report
+  quizFlashcards[quizIndex].userAnswer = userAnswer;
+  quizFlashcards[quizIndex].isCorrect = !!result.correct;
+
+  if (result.correct) {
+    correctCount++;
+  } else {
+    wrongCount++;
+  }
+
+  quizIndex++;
+  showNextQuizCard();
+}
+
+function closeQuiz() {
+  document.getElementById("quizModal").classList.add("hidden");
+}
+
+// ✅ NEW FUNCTION: Generate Quiz Report
+function generateQuizReport() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(40, 80, 160);
+  doc.text("QuizCraft - Quiz Report", 105, 20, { align: 'center' });
+
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(0);
+
+  let y = 30;
+  doc.text(`📅 Date: ${new Date().toLocaleString()}`, 14, y);
+  y += 8;
+  doc.text(`✅ Correct: ${correctCount}`, 14, y);
+  y += 6;
+  doc.text(`❌ Incorrect: ${wrongCount}`, 14, y);
+  y += 10;
+
+  quizFlashcards.forEach((card, index) => {
+    const userAnswer = card.userAnswer || '';
+    const isCorrect = card.isCorrect ? '✅ Correct' : '❌ Incorrect';
+    const qText = `Q${index + 1}: ${card.question}`;
+    const uaText = `Your Answer: ${userAnswer}`;
+    const caText = `Correct Answer: ${card.answer}`;
+    const resultText = `Result: ${isCorrect}`;
+
+    const lines = doc.splitTextToSize(
+      [qText, uaText, caText, resultText].join('\n'),
+      180
+    );
+    doc.text(lines, 14, y);
+    y += lines.length * 6 + 4;
+
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+  });
+
+  doc.save("QuizCraft_Quiz_Report.pdf");
+}

@@ -75,6 +75,28 @@ def transcribe_audio():
     return jsonify({'status': 'success', 'transcript': transcript})
 
 # No backend OCR here because we're using Tesseract.js on frontend.
+@app.route('/evaluate_answer', methods=['POST'])
+def evaluate_answer():
+    data = request.get_json()
+    user_answer = data.get('user_answer', '').strip()
+    correct_answer = data.get('correct_answer', '').strip()
+
+    if not user_answer or not correct_answer:
+        return jsonify({'correct': False, 'reason': 'Empty input'}), 400
+
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        prompt = (
+            "You are a smart evaluator. Compare the user’s answer to the correct answer.\n"
+            f"Correct Answer: {correct_answer}\n"
+            f"User Answer: {user_answer}\n"
+            "Is the user’s answer semantically correct? Reply only 'yes' or 'no'."
+        )
+        response = model.generate_content(prompt)
+        result = response.text.strip().lower()
+        return jsonify({'correct': 'yes' in result})
+    except Exception as e:
+        return jsonify({'correct': False, 'error': str(e)}), 500
 
 # === Run Server ===
 if __name__ == '__main__':

@@ -1,57 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>QuizCraft - AI Flashcard Generator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
 </head>
 <body class="bg-gray-50 font-sans">
-  <div class="max-w-4xl mx-auto py-8 px-4">
+  <div class="max-w-6xl mx-auto py-8 px-4">
+    <!-- Header -->
     <header class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-blue-700">QuizCraft</h1>
     </header>
 
-    <section class="bg-white p-6 rounded-xl shadow">
-      <h2 class="text-xl font-semibold mb-2">Create Your Flashcards</h2>
-      <textarea id="inputText" class="w-full p-4 border rounded-md h-40 mb-4 resize-none" placeholder="Paste your study materials here..."></textarea>
-      <button onclick="generateFlashcards()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold">
-        ⚡ Generate Flashcards
-      </button>
+    <!-- Flashcard Input Section -->
+    <section class="bg-white p-8 rounded-xl shadow">
+      <h2 class="text-xl font-semibold mb-4">Create Your Flashcards</h2>
+
+      <!-- Mode Switcher (One line) -->
+      <div class="flex flex-wrap gap-4 mb-6">
+        <button id="textModeBtn" onclick="switchMode('text')"
+          class="bg-blue-600 text-white px-6 py-2 rounded-md font-medium shadow hover:bg-blue-700">
+          📝 Text to Flashcards
+        </button>
+        <button id="audioModeBtn" onclick="switchMode('audio')"
+          class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">
+          🎧 Audio to Flashcards
+        </button>
+        <button id="imageModeBtn" onclick="switchMode('image')"
+          class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">
+          📸 Image to Flashcards
+        </button>
+        <button id="pdfModeBtn" onclick="switchMode('pdf')"
+          class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">
+          📄 PDF to Flashcards
+        </button>
+      </div>
+
+      <!-- Text Mode Input -->
+      <div id="textModeSection">
+        <textarea
+          id="inputText"
+          class="w-full p-4 border rounded-md h-40 mb-4 resize-none"
+          placeholder="Paste your study materials here..."
+        ></textarea>
+        <button
+          onclick="generateFlashcards()"
+          class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold"
+        >
+          ⚡ Generate Flashcards
+        </button>
+      </div>
+
+      <!-- Audio Mode Input -->
+      <div id="audioModeSection" class="hidden">
+        <label class="block font-medium mb-1">Upload Audio File (.wav/.mp3)</label>
+        <input
+          type="file"
+          id="audioFile"
+          accept="audio/*"
+          class="mb-2 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm p-2"
+        />
+        <button
+          onclick="uploadAudio()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg"
+        >
+          ⬆️ Upload and Generate Flashcards
+        </button>
+        <p id="uploadStatus" class="text-sm text-gray-600 mt-2"></p>
+      </div>
+
+      <!-- Image Mode Input -->
+      <div id="imageModeSection" class="hidden">
+        <label class="block font-medium mb-1">Upload Image File (JPG, PNG)</label>
+        <input
+          type="file"
+          id="imageFile"
+          accept="image/*"
+          class="mb-2 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm p-2"
+        />
+        <button
+          onclick="uploadImage()"
+          class="bg-pink-600 hover:bg-pink-700 text-white py-2 px-4 rounded-lg"
+        >
+          📸 Scan and Generate Flashcards
+        </button>
+        <p id="imageStatus" class="text-sm text-gray-600 mt-2"></p>
+      </div>
+
+      <!-- PDF Mode Input -->
+      <div id="pdfModeSection" class="hidden">
+        <label class="block font-medium mb-1">Upload PDF File</label>
+        <p class="text-sm text-red-600 mb-2">
+          ⚠️ Please upload a small PDF (like one chapter). Avoid full books.
+        </p>
+        <input
+          type="file"
+          id="pdfFile"
+          accept="application/pdf"
+          class="mb-2 block w-full text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm p-2"
+        />
+        <button
+          onclick="uploadPDF()"
+          class="bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded-lg"
+        >
+          📄 Extract and Generate Flashcards
+        </button>
+        <p id="pdfStatus" class="text-sm text-gray-600 mt-2"></p>
+      </div>
     </section>
 
+    <!-- Flashcard Display & Export -->
     <section class="mt-8">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-semibold">Generated Flashcards</h2>
-
-        <!-- Export Button + Dropdown -->
         <div class="relative inline-block text-left">
-          <button onclick="toggleExportMenu()" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold">
+          <button onclick="toggleExportMenu()"
+            class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold">
             📤 Export Flashcards
           </button>
-          <div id="exportMenu" class="hidden absolute z-10 right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-200">
-            <button onclick="exportFlashcardsToPDF(); toggleExportMenu()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">
+          <div id="exportMenu"
+            class="hidden absolute z-10 right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-200">
+            <button onclick="exportFlashcardsToPDF(); toggleExportMenu()"
+              class="block w-full text-left px-4 py-2 hover:bg-gray-100">
               📄 Export as PDF
             </button>
-            <button onclick="exportFlashcardsToCSV(); toggleExportMenu()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">
+            <button onclick="exportFlashcardsToCSV(); toggleExportMenu()"
+              class="block w-full text-left px-4 py-2 hover:bg-gray-100">
               📊 Export as CSV
             </button>
           </div>
         </div>
       </div>
-
       <div id="flashcards" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
     </section>
 
+    <!-- Footer -->
     <footer class="text-center mt-8 text-sm text-gray-500">
       Powered by AI • Flashcards made smart
     </footer>
   </div>
 
+  <!-- Scripts -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
-
-  <!-- jsPDF + AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Mode Switch Script -->
+  <script>
+    function switchMode(mode) {
+      const modes = ['text', 'audio', 'image', 'pdf'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`${m}ModeBtn`);
+        const section = document.getElementById(`${m}ModeSection`);
+        if (m === mode) {
+          btn.classList.replace('bg-gray-200', 'bg-blue-600');
+          btn.classList.replace('text-gray-800', 'text-white');
+          section.classList.remove('hidden');
+        } else {
+          btn.classList.replace('bg-blue-600', 'bg-gray-200');
+          btn.classList.replace('text-white', 'text-gray-800');
+          section.classList.add('hidden');
+        }
+      });
+    }
+  </script>
 </body>
 </html>

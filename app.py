@@ -1,11 +1,17 @@
 from flask import Flask, request, render_template, jsonify
 import google.generativeai as genai
 import re
+from faster_whisper import WhisperModel
+import tempfile
+import os
 
+# === Setup ===
 app = Flask(__name__)
-genai.configure(api_key="")  # replace with your real API key
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 flashcard_cache = {}
+
+# === Routes ===
 
 @app.route('/')
 def index():
@@ -49,7 +55,27 @@ def generate_flashcards():
         return jsonify({'status': 'success', 'flashcards': flashcards})
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': 'Something went wrong.', 'flashcards': []}), 500
+        return jsonify({'status': 'error', 'message': f'Something went wrong: {e}', 'flashcards': []}), 500
 
+@app.route('/transcribe_audio', methods=['POST'])
+def transcribe_audio():
+    if 'audio' not in request.files:
+        return jsonify({'status': 'error', 'message': 'No audio uploaded'}), 400
+
+    audio_file = request.files['audio']
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        audio_file.save(tmp.name)
+        whisper_model = WhisperModel("base", compute_type="int8")
+        segments, _ = whisper_model.transcribe(tmp.name)
+        transcript = ' '.join([seg.text for seg in segments])
+
+    if not transcript.strip():
+        return jsonify({'status': 'error', 'message': 'Could not transcribe audio'}), 400
+
+    return jsonify({'status': 'success', 'transcript': transcript})
+
+# No backend OCR here because we're using Tesseract.js on frontend.
+
+# === Run Server ===
 if __name__ == '__main__':
     app.run(debug=True)

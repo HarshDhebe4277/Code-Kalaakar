@@ -15,9 +15,29 @@
   <div class="max-w-6xl mx-auto py-8 px-4">
 
     <!-- Header -->
+    <!-- Header -->
+     <!-- Header -->
     <header class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-blue-700">QuizCraft</h1>
+
+      {% if session['username'] %}
+      <div class="relative inline-block text-left">
+        <button id="profileBtn" onclick="toggleProfileDropdown()" class="flex flex-col items-center focus:outline-none">
+          <img src="https://api.dicebear.com/8.x/initials/svg?seed={{ session['username'] }}" alt="avatar" class="w-10 h-10 rounded-full border mb-1">
+          <span class="text-sm text-gray-700">{{ session['username'] }}</span>
+        </button>
+
+        <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-32 bg-white shadow-lg border rounded-md z-50">
+          <a href="/logout" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</a>
+        </div>
+      </div>
+      {% else %}
+      <a href="/login" class="text-blue-600 hover:underline">Login</a>
+      {% endif %}
     </header>
+
+
+
 
     <!-- Flashcard Input Section -->
     <section class="bg-white p-8 rounded-xl shadow">
@@ -133,5 +153,22 @@
       });
     }
   </script>
+
+  <script>
+  function toggleProfileDropdown() {
+    const menu = document.getElementById("profileDropdown");
+    menu.classList.toggle("hidden");
+  }
+
+  // Optional: Hide dropdown when clicking outside
+  window.addEventListener('click', function (e) {
+    const dropdown = document.getElementById('profileDropdown');
+    const button = document.getElementById('profileBtn');
+    if (!button.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+</script>
+
 </body>
 </html>

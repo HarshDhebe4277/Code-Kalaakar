@@ -1,24 +1,100 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for, session
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import or_
+from dotenv import load_dotenv
 import google.generativeai as genai
-import re
 from faster_whisper import WhisperModel
 import tempfile
 import os
+import re
 
-# === Setup ===
+# === Load Environment Variables ===
+load_dotenv()
+
+# === Flask Setup ===
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "default-secret")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# === Extensions ===
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+# === Flashcard Cache (in-memory) ===
 flashcard_cache = {}
+
+# === Models ===
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
 
 # === Routes ===
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('index.html', username=session.get('username'))
+
+# ---------- AUTH ROUTES ----------
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        email = request.form['email'].strip().lower()
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+
+        if password != confirm_password:
+            return render_template('signup.html', error='Passwords do not match.')
+
+        existing_user = User.query.filter(or_(User.username == username, User.email == email)).first()
+        if existing_user:
+            return render_template('signup.html', error='Username or Email already exists.')
+
+        hashed_pw = generate_password_hash(password)
+        new_user = User(username=username, email=email, password=hashed_pw)
+        db.session.add(new_user)
+        db.session.commit()
+
+        return redirect(url_for('login'))
+    return render_template('signup.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        identifier = request.form['identifier'].strip().lower()
+        password = request.form['password']
+
+        user = User.query.filter(or_(User.email == identifier, User.username == identifier)).first()
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='Invalid credentials.')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# ---------- FLASHCARD GENERATION ----------
 
 @app.route('/generate_flashcards', methods=['POST'])
 def generate_flashcards():
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Please log in first.'}), 401
+
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
@@ -40,7 +116,7 @@ def generate_flashcards():
         response = model.generate_content(prompt)
         output = response.text.strip()
 
-        matches = re.findall(r'Question[:>]\s*(.+?)\s*Answer[:>]\s*(.+?)(?=\n|$)', output, flags=re.IGNORECASE | re.DOTALL)
+        matches = re.findall(r'Question[:>]\\s*(.+?)\\s*Answer[:>]\\s*(.+?)(?=\\n|$)', output, flags=re.IGNORECASE | re.DOTALL)
 
         flashcards = []
         for q, a in matches:
@@ -56,6 +132,8 @@ def generate_flashcards():
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'Something went wrong: {e}', 'flashcards': []}), 500
+
+# ---------- AUDIO TRANSCRIPTION ----------
 
 @app.route('/transcribe_audio', methods=['POST'])
 def transcribe_audio():
@@ -74,7 +152,8 @@ def transcribe_audio():
 
     return jsonify({'status': 'success', 'transcript': transcript})
 
-# No backend OCR here because we're using Tesseract.js on frontend.
+# ---------- QUIZ EVALUATOR ----------
+
 @app.route('/evaluate_answer', methods=['POST'])
 def evaluate_answer():
     data = request.get_json()
@@ -98,6 +177,9 @@ def evaluate_answer():
     except Exception as e:
         return jsonify({'correct': False, 'error': str(e)}), 500
 
-# === Run Server ===
+# ---------- DB INIT ----------
+
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)

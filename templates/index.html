@@ -12,12 +12,37 @@
 </head>
 
 <body class="bg-gray-50 font-sans">
+  <!-- Popup for login required -->
+  <div id="loginRequiredPopup" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded shadow-lg z-50 hidden">
+    Login is required to use this feature.
+  </div>
+
   <div class="max-w-6xl mx-auto py-8 px-4">
 
     <!-- Header -->
-    <header class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-blue-700">QuizCraft</h1>
-    </header>
+     <header class="flex justify-between items-center mb-6">
+  <h1 class="text-3xl font-bold text-blue-700">QuizCraft</h1>
+  <div>
+    {% if 'user_id' in session %}
+      <div class="relative inline-block text-center">
+        <!-- Profile Avatar Button -->
+        <button onclick="toggleProfileDropdown()" class="flex items-center justify-center w-12 h-12 bg-blue-600 text-white rounded-full font-bold text-lg shadow">
+          {{ session['username'][:1] | upper }}
+        </button>
+        <!-- Username below -->
+        <p class="mt-1 text-sm font-medium text-gray-800">{{ session['username'] }}</p>
+        <!-- Dropdown -->
+        <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-50">
+          <a href="/logout" class="block px-4 py-2 text-red-600 hover:bg-red-100">🚪 Logout</a>
+        </div>
+      </div>
+    {% else %}
+      <a href="/login-page" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Login</a>
+      <a href="/register-page" class="ml-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Register</a>
+    {% endif %}
+  </div>
+</header>
+
 
     <!-- Flashcard Input Section -->
     <section class="bg-white p-8 rounded-xl shadow">
@@ -82,8 +107,20 @@
     <div id="quizModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
       <div class="bg-white rounded-xl p-6 max-w-xl w-full relative shadow-lg">
         <button onclick="closeQuiz()" class="absolute top-3 right-4 text-gray-500">✖️</button>
-        <h3 id="quizProgress" class="text-lg font-bold text-blue-700 mb-2"></h3>
-        <p id="quizQuestion" class="text-gray-800 font-semibold text-lg mb-4"></p>
+        <!-- Quiz Progress -->
+<div class="mb-4">
+  <div class="text-sm text-gray-600 mb-1" id="quizProgress">Question 1 of 10</div>
+  <div class="w-full bg-gray-200 rounded-full h-2">
+    <div id="quizProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 0%;"></div>
+  </div>
+</div>
+
+<!-- Quiz Question -->
+<p id="quizQuestion" class="text-gray-800 font-semibold text-lg mb-4"></p>
+
+<!-- Feedback -->
+<div id="quizFeedback" class="text-center text-white py-2 rounded-lg font-semibold mb-4 hidden transition-all duration-300"></div>
+
         <label for="userAnswer" class="block font-medium mb-1">Your Answer:</label>
         <textarea id="userAnswer" class="w-full p-2 border rounded-md mb-4" rows="3" placeholder="Type your answer here..."></textarea>
         <button onclick="submitQuizAnswer()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">✅ Submit Answer</button>

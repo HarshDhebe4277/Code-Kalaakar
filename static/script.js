@@ -10,8 +10,7 @@ async function generateFlashcards() {
   container.appendChild(loader);
 
   if (!text) {
-    alert("Please enter study notes.");
-    container.innerHTML = '';
+    container.innerHTML = `<p class="text-red-600">Please enter your study notes.</p>`;
     return;
   }
 
@@ -21,11 +20,11 @@ async function generateFlashcards() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
     });
-
     const result = await res.json();
-    container.innerHTML = '';
 
     if (result.status === 'success') {
+      container.innerHTML = '';
+
       if (result.flashcards.length === 0) {
         container.innerHTML = `<p class="text-gray-600">No flashcards could be generated from your input.</p>`;
         return;
@@ -59,10 +58,16 @@ async function generateFlashcards() {
       });
 
     } else {
+      // Check for login required
+      if (result.message && result.message.toLowerCase().includes('login required')) {
+        showLoginRequiredPopup();
+        container.innerHTML = '';
+        return;
+      }
       container.innerHTML = `<p class="text-red-600">${result.message || 'Could not generate flashcards. Try different notes.'}</p>`;
     }
   } catch (error) {
-    container.innerHTML = `<p class="text-red-600">⚠️ Network or server error. Please try again.</p>`;
+    container.innerHTML = `<p class="text-red-600">Something went wrong. Please try again.</p>`;
   }
 }
 
@@ -467,8 +472,11 @@ function showNextQuizCard() {
 
   const card = quizFlashcards[quizIndex];
   document.getElementById("quizQuestion").textContent = card.question;
-  document.getElementById("quizProgress").textContent = `Question ${quizIndex + 1} of ${quizFlashcards.length}`;
+  // document.getElementById("quizProgress").textContent = `Question ${quizIndex + 1} of ${quizFlashcards.length}`;
   document.getElementById("userAnswer").value = '';
+
+  updateQuizProgress(quizIndex + 1, quizFlashcards.length);
+
 }
 
 async function submitQuizAnswer() {
@@ -489,10 +497,13 @@ async function submitQuizAnswer() {
   quizFlashcards[quizIndex].isCorrect = !!result.correct;
 
   if (result.correct) {
-    correctCount++;
-  } else {
-    wrongCount++;
-  }
+  correctCount++;
+  showFeedback(true);
+} else {
+  wrongCount++;
+  showFeedback(false, correctAnswer);
+}
+
 
   quizIndex++;
   showNextQuizCard();
@@ -546,4 +557,96 @@ function generateQuizReport() {
   });
 
   doc.save("QuizCraft_Quiz_Report.pdf");
+}
+async function register() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value.trim();
+
+  if (!email || !password) {
+    alert("Please enter both email and password.");
+    return;
+  }
+
+  const res = await fetch('/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+
+  const result = await res.json();
+  alert(result.message);
+}
+
+async function login() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value.trim();
+
+  if (!email || !password) {
+    alert("Please enter both email and password.");
+    return;
+  }
+
+  const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+
+  const result = await res.json();
+
+  if (result.status === 'success') {
+    alert("✅ Login successful!");
+    location.reload();
+  } else {
+    alert("❌ " + result.message);
+  }
+}
+
+// Add this function at the end of script.js
+function showLoginRequiredPopup() {
+  const popup = document.getElementById('loginRequiredPopup');
+  if (!popup) return;
+  popup.classList.remove('hidden');
+  setTimeout(() => {
+    popup.classList.add('hidden');
+  }, 3000);
+}
+
+
+function toggleProfileDropdown() {
+  const dropdown = document.getElementById('profileDropdown');
+  dropdown.classList.toggle('hidden');
+}
+
+// Close dropdown on click outside
+document.addEventListener('click', function (e) {
+  const button = e.target.closest('[onclick="toggleProfileDropdown()"]');
+  const dropdown = document.getElementById('profileDropdown');
+  if (!button && dropdown && !dropdown.contains(e.target)) {
+    dropdown.classList.add('hidden');
+  }
+});
+
+
+function updateQuizProgress(current, total) {
+  document.getElementById("quizProgress").textContent = `Question ${current} of ${total}`;
+  const percentage = (current / total) * 100;
+  document.getElementById("quizProgressBar").style.width = `${percentage}%`;
+}
+
+function showFeedback(correct, correctAnswer = "") {
+  const feedback = document.getElementById("quizFeedback");
+  feedback.classList.remove("hidden");
+
+  if (correct) {
+    feedback.textContent = "✅ Correct!";
+    feedback.className = "bg-green-500 text-white text-center py-2 rounded-lg font-semibold mb-4 transition-all duration-300";
+  } else {
+    feedback.textContent = `❌ Incorrect. Correct: ${correctAnswer}`;
+    feedback.className = "bg-red-500 text-white text-center py-2 rounded-lg font-semibold mb-4 transition-all duration-300";
+  }
+
+  setTimeout(() => {
+    feedback.classList.add("hidden");
+  }, 2000);
 }

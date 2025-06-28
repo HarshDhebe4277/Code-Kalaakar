@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Register - QuizCraft</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-md mx-auto mt-20 bg-white p-8 rounded-xl shadow">
+    <h2 class="text-2xl font-bold mb-6 text-green-600 text-center">🟢 Create Your Account</h2>
+    <form onsubmit="registerUser(event)">
+      <input id="username" type="text" placeholder="Username" class="w-full mb-4 p-3 border rounded" required />
+      <input id="email" type="email" placeholder="Email" class="w-full mb-4 p-3 border rounded" required />
+      <div class="relative mb-4">
+        <input id="password" type="password" placeholder="Password" class="w-full p-3 border rounded pr-10" required />
+        <button type="button" onclick="togglePassword('password', this)" class="absolute right-3 top-3 text-gray-500">
+          👁️
+        </button>
+      </div>
+      <div class="relative mb-4">
+        <input id="confirmPassword" type="password" placeholder="Confirm Password" class="w-full p-3 border rounded pr-10" required />
+        <button type="button" onclick="togglePassword('confirmPassword', this)" class="absolute right-3 top-3 text-gray-500">
+          👁️
+        </button>
+      </div>
+      <button type="submit" class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">Register</button>
+    </form>
+    <p class="mt-4 text-sm text-center">Already have an account? 
+      <a href="/login-page" class="text-green-600 hover:underline">Login</a>
+    </p>
+  </div>
+
+  <script>
+    function togglePassword(fieldId, btn) {
+      const input = document.getElementById(fieldId);
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "🙈";
+      } else {
+        input.type = "password";
+        btn.textContent = "👁️";
+      }
+    }
+
+    async function registerUser(e) {
+      e.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const confirmPassword = document.getElementById("confirmPassword").value.trim();
+
+      if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+      }
+
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+
+      const result = await res.json();
+      if (result.status === 'success') {
+        alert("Registration successful!");
+        window.location.href = "/login-page";
+      } else {
+        alert(result.message);
+      }
+    }
+  </script>
+</body>
+</html>

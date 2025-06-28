@@ -1,24 +1,152 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for, session
+from flask_dance.contrib.google import make_google_blueprint, google
+from flask_dance.consumer.storage.session import SessionStorage
+from flask_session import Session
 import google.generativeai as genai
 import re
 from faster_whisper import WhisperModel
+from dotenv import load_dotenv
 import tempfile
 import os
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
 
 # === Setup ===
+load_dotenv()
 app = Flask(__name__)
+
+# Session Config
+app.secret_key = os.getenv("SECRET_KEY") or "super_secret_key"
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_COOKIE_SECURE'] = False  # Only for local development
+app.config['SESSION_COOKIE_SAMESITE'] = "Lax"
+Session(app)
+
+# Google OAuth setup
+google_bp = make_google_blueprint(
+    client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+    scope=[
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "openid"
+    ],
+    redirect_to="google_authorized",  # 👈 use view function name here
+    storage=SessionStorage()
+)
+
+app.register_blueprint(google_bp, url_prefix="/login")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 flashcard_cache = {}
 
-# === Routes ===
+# === User Model ===
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(128), nullable=True)  # Nullable for Google accounts
 
+
+# === Auth Routes ===
+@app.route("/login/google/authorized")
+def google_authorized():
+    if not google.authorized:
+        return redirect(url_for("login_page"))
+
+    resp = google.get("/oauth2/v2/userinfo")
+    print("Google userinfo response:", resp.text)
+
+    if not resp.ok:
+        return redirect(url_for("login_page"))
+
+    user_info = resp.json()
+    email = user_info["email"]
+    name = user_info.get("name", "Google User")
+
+    # Check if user already exists
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        user = User(email=email, username=name)
+        db.session.add(user)
+        db.session.commit()
+
+    # Login the user
+    session['user_id'] = user.id
+    session['email'] = user.email
+    session['username'] = user.username
+
+    return redirect(url_for("index"))
+
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({'status': 'error', 'message': 'Email and password required'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if user and user.password and bcrypt.check_password_hash(user.password, password):
+        session['user_id'] = user.id
+        session['email'] = user.email
+        session['username'] = user.username
+        return jsonify({'status': 'success'})
+
+    return jsonify({'status': 'error', 'message': 'Invalid credentials'}), 401
+
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not username or not email or not password:
+        return jsonify({'status': 'error', 'message': 'All fields are required'}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({'status': 'error', 'message': 'Email already exists'}), 409
+
+    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+    user = User(username=username, email=email, password=hashed_pw)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({'status': 'success'})
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+# === Page Routes ===
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/login-page')
+def login_page():
+    return render_template('login.html')
+
+@app.route('/register-page')
+def register_page():
+    return render_template('register.html')
+
+# === Flashcard Generation ===
 @app.route('/generate_flashcards', methods=['POST'])
 def generate_flashcards():
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Login required', 'flashcards': []}), 401
+
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
@@ -57,6 +185,7 @@ def generate_flashcards():
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'Something went wrong: {e}', 'flashcards': []}), 500
 
+
 @app.route('/transcribe_audio', methods=['POST'])
 def transcribe_audio():
     if 'audio' not in request.files:
@@ -74,7 +203,7 @@ def transcribe_audio():
 
     return jsonify({'status': 'success', 'transcript': transcript})
 
-# No backend OCR here because we're using Tesseract.js on frontend.
+
 @app.route('/evaluate_answer', methods=['POST'])
 def evaluate_answer():
     data = request.get_json()
@@ -98,6 +227,9 @@ def evaluate_answer():
     except Exception as e:
         return jsonify({'correct': False, 'error': str(e)}), 500
 
+
 # === Run Server ===
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)

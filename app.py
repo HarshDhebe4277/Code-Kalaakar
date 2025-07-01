@@ -23,7 +23,8 @@ Session(app)
 
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))

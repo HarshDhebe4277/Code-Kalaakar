@@ -1,3 +1,6 @@
+
+let quizStartTime = null;
+
 async function generateFlashcards() {
   const text = document.getElementById('inputText').value.trim();
   const container = document.getElementById('flashcards');
@@ -306,8 +309,8 @@ async function uploadPDF() {
 
   const file = fileInput.files[0];
 
-  if (file.size > 5 * 1024 * 1024) { // 5MB limit
-    pdfStatus.textContent = '❌ File too large. Try a smaller chapter or section.';
+  if (file.size > 10 * 1024 * 1024) {
+    pdfStatus.textContent = '❌ PDF too large. Please upload < 10MB.';
     pdfStatus.className = 'text-sm text-red-600';
     return;
   }
@@ -316,38 +319,39 @@ async function uploadPDF() {
   pdfStatus.className = 'text-sm text-gray-600 animate-pulse';
 
   try {
-    const fileReader = new FileReader();
-    fileReader.onload = async function() {
-      const typedArray = new Uint8Array(this.result);
+    const reader = new FileReader();
+    reader.onload = async function () {
+      const typedArray = new Uint8Array(reader.result);
       const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
-      let textContent = '';
 
-      for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-        const text = await page.getTextContent();
-        const pageText = text.items.map(item => item.str).join(' ');
-        textContent += pageText + '\n';
+        const content = await page.getTextContent();
+        const pageText = content.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n\n';
       }
 
-      if (!textContent.trim()) {
-        pdfStatus.textContent = '❌ No text extracted from PDF.';
+      if (!fullText.trim()) {
+        pdfStatus.textContent = '❌ No text found in PDF.';
         pdfStatus.className = 'text-sm text-red-600';
         return;
       }
 
+      document.getElementById('inputText').value = fullText;
       pdfStatus.textContent = '✅ PDF text extracted! Generating flashcards...';
-      document.getElementById('inputText').value = textContent;
       await generateFlashcards();
       pdfStatus.textContent = '';
     };
 
-    fileReader.readAsArrayBuffer(file);
-  } catch (error) {
-    console.error(error);
+    reader.readAsArrayBuffer(file);
+  } catch (err) {
+    console.error(err);
     pdfStatus.textContent = '❌ Failed to extract PDF. Please try again.';
     pdfStatus.className = 'text-sm text-red-600';
   }
 }
+
 
 document.getElementById("quizInputType").addEventListener("change", e => {
   const container = document.getElementById("quizInputFields");
@@ -371,6 +375,9 @@ let wrongCount = 0;
 
 async function startQuizFromInput() {
   const type = document.getElementById("quizInputType").value;
+  const questionCountOption = document.getElementById("questionCount").value;
+  const customCountValue = document.getElementById("customQuestionCount")?.value;
+
   const flashcardTextInput = async () => document.getElementById("quizText").value.trim();
 
   const flashcardAudioInput = async () => {
@@ -429,19 +436,54 @@ async function startQuizFromInput() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: rawText })
   });
+
   const result = await res.json();
   if (result.status !== 'success' || result.flashcards.length === 0) {
     alert("Could not generate flashcards. Try with better input.");
     return;
   }
 
-  quizFlashcards = result.flashcards;
+  let allFlashcards = result.flashcards;
+  const maxAvailable = allFlashcards.length;
+  let count = maxAvailable;
+
+  // Handle dropdown logic
+  if (['5', '10', '15'].includes(questionCountOption)) {
+    const selectedCount = parseInt(questionCountOption);
+    if (selectedCount > maxAvailable) {
+      alert(`Only ${maxAvailable} questions available. Starting quiz with all available.`);
+    }
+    count = Math.min(selectedCount, maxAvailable);
+  } else if (questionCountOption === 'custom') {
+    const customCount = parseInt(customCountValue);
+    if (isNaN(customCount) || customCount <= 0) {
+      alert("Please enter a valid custom number of questions.");
+      return;
+    }
+    if (customCount > maxAvailable) {
+      alert(`Only ${maxAvailable} questions available. Starting quiz with all available.`);
+    }
+    count = Math.min(customCount, maxAvailable);
+  }
+  // "Max Possible" (default fallback) means use all
+
+  // Shuffle and select flashcards
+  allFlashcards = allFlashcards.sort(() => Math.random() - 0.5).slice(0, count);
+
+  quizFlashcards = allFlashcards;
   quizIndex = 0;
   correctCount = 0;
   wrongCount = 0;
+
+  quizStartTime = new Date();
+
   showNextQuizCard();
   document.getElementById("quizModal").classList.remove("hidden");
+
+  enableQuizSecurity(); // Call this right before showing the quiz
+document.getElementById("quizModal").classList.remove("hidden");
 }
+
 
 // ... (all your functions up to showNextQuizCard stay the same)
 
@@ -511,53 +553,106 @@ async function submitQuizAnswer() {
 
 function closeQuiz() {
   document.getElementById("quizModal").classList.add("hidden");
+  disableQuizSecurity(); // Clean up
 }
+
 
 // ✅ NEW FUNCTION: Generate Quiz Report
 function generateQuizReport() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(40, 80, 160);
-  doc.text("QuizCraft - Quiz Report", 105, 20, { align: 'center' });
-
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(0);
-
-  let y = 30;
-  doc.text(`📅 Date: ${new Date().toLocaleString()}`, 14, y);
-  y += 8;
-  doc.text(`✅ Correct: ${correctCount}`, 14, y);
-  y += 6;
-  doc.text(`❌ Incorrect: ${wrongCount}`, 14, y);
-  y += 10;
-
-  quizFlashcards.forEach((card, index) => {
-    const userAnswer = card.userAnswer || '';
-    const isCorrect = card.isCorrect ? '✅ Correct' : '❌ Incorrect';
-    const qText = `Q${index + 1}: ${card.question}`;
-    const uaText = `Your Answer: ${userAnswer}`;
-    const caText = `Correct Answer: ${card.answer}`;
-    const resultText = `Result: ${isCorrect}`;
-
-    const lines = doc.splitTextToSize(
-      [qText, uaText, caText, resultText].join('\n'),
-      180
-    );
-    doc.text(lines, 14, y);
-    y += lines.length * 6 + 4;
-
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
+  try {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert("PDF library not loaded. Please refresh the page and try again.");
+      return;
     }
-  });
 
-  doc.save("QuizCraft_Quiz_Report.pdf");
+    if (!quizFlashcards || !quizFlashcards.length) {
+      alert("No quiz data found. Please complete a quiz first.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const userName = document.getElementById("userName")?.textContent || "Anonymous";
+    const userEmail = document.getElementById("userEmail")?.textContent || "Not provided";
+    const timeTaken = quizStartTime ? ((new Date() - quizStartTime) / 1000).toFixed(1) + ' sec' : "N/A";
+    const totalQuestions = quizFlashcards.length;
+    const accuracy = ((correctCount / totalQuestions) * 100).toFixed(1);
+
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(30, 64, 175);
+    doc.text("QuizCraft - Quiz Report", 105, 20, { align: "center" });
+
+    // User Info
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(33, 37, 41);
+    let y = 30;
+
+    const userInfo = [
+      `Name: ${userName}`,
+      `Email: ${userEmail}`,
+      `Date: ${new Date().toLocaleString()}`,
+      `Time Taken: ${timeTaken}`,
+      `Total Questions: ${totalQuestions}`,
+      `Correct: ${correctCount}`,
+      `Incorrect: ${wrongCount}`,
+      `Accuracy: ${accuracy}%`
+    ];
+
+    userInfo.forEach(line => {
+      doc.text(line, 14, y);
+      y += 6;
+    });
+
+    y += 4;
+
+    // Flashcard QA section
+    quizFlashcards.forEach((card, index) => {
+      const question = `Q${index + 1}: ${card.question}`;
+      const userAnswer = `Your Answer: ${card.userAnswer || 'Not answered'}`;
+      const correctAnswer = `Correct Answer: ${card.answer}`;
+      const resultText = card.isCorrect ? "Result: Correct" : "Result: Incorrect";
+      const resultColor = card.isCorrect ? [34, 197, 94] : [239, 68, 68];
+
+      const wrapText = (text) => doc.splitTextToSize(text, 180);
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(17, 24, 39);
+      doc.text(wrapText(question), 14, y);
+      y += wrapText(question).length * 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(55, 65, 81);
+      doc.text(wrapText(userAnswer), 14, y);
+      y += wrapText(userAnswer).length * 6;
+
+      doc.text(wrapText(correctAnswer), 14, y);
+      y += wrapText(correctAnswer).length * 6;
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...resultColor);
+      doc.text(resultText, 14, y);
+      y += 10;
+
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    doc.save("QuizCraft_Quiz_Report.pdf");
+  } catch (err) {
+    console.error("❌ Failed to generate report:", err);
+    alert("Something went wrong while generating the report.");
+  }
 }
+
+
+
+
 async function register() {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value.trim();
@@ -649,4 +744,52 @@ function showFeedback(correct, correctAnswer = "") {
   setTimeout(() => {
     feedback.classList.add("hidden");
   }, 2000);
+}
+
+
+// 🔒 Disable text selection, copy, cut, right-click during quiz
+function enableQuizSecurity() {
+  // Prevent text selection
+  document.getElementById("quizModal").classList.add("select-none");
+
+  // Disable keyboard shortcuts like Ctrl+C / Ctrl+X
+  document.addEventListener("keydown", disableCopyShortcuts);
+  
+  // Disable right-click
+  document.addEventListener("contextmenu", disableContextMenu);
+
+  document.addEventListener("keyup", async (e) => {
+  if (e.key === "PrintScreen") {
+    try {
+      await navigator.clipboard.writeText("⚠️ Screenshot disabled during quiz.");
+      alert("📷 Screenshot blocked!");
+    } catch (err) {
+      console.log("Clipboard access denied or not supported.");
+    }
+  }
+});
+
+}
+
+// 🔓 Re-enable after quiz
+function disableQuizSecurity() {
+  document.getElementById("quizModal").classList.remove("select-none");
+  document.removeEventListener("keydown", disableCopyShortcuts);
+  document.removeEventListener("contextmenu", disableContextMenu);
+}
+
+function disableCopyShortcuts(e) {
+  const quizVisible = !document.getElementById("quizModal").classList.contains("hidden");
+  if (
+    quizVisible &&
+    (e.ctrlKey || e.metaKey) &&
+    ["c", "x", "a", "p", "s", "u"].includes(e.key.toLowerCase())
+  ) {
+    e.preventDefault();
+  }
+}
+
+function disableContextMenu(e) {
+  const quizVisible = !document.getElementById("quizModal").classList.contains("hidden");
+  if (quizVisible) e.preventDefault();
 }

@@ -9,164 +9,256 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+    }
+    .mode-btn {
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .mode-btn:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .mode-btn::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 300%;
+      height: 300%;
+      background: rgba(255, 255, 255, 0.1);
+      transform: translate(-50%, -50%) scale(0);
+      transition: transform 0.4s ease;
+      border-radius: 50%;
+    }
+    .mode-btn:hover::after {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .mode-btn span {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+    .mode-btn:hover span {
+      transform: scale(1.2);
+    }
+  </style>
 </head>
 
-<body class="bg-gray-50 font-sans">
+<body class="bg-gray-100">
   <!-- Login Required Popup -->
-  <div id="loginRequiredPopup" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded shadow-lg z-50 hidden">
+  <div id="loginRequiredPopup" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 hidden animate-pulse">
     Login is required to use this feature.
   </div>
 
-  <div class="max-w-6xl mx-auto py-8 px-4">
-
-    <!-- Header -->
-    <header class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-blue-700">QuizCraft</h1>
-      <div>
+  <!-- Header -->
+  <header class="sticky top-0 bg-white shadow-sm z-40">
+    <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-indigo-600">QuizCraft</h1>
+      <div class="flex items-center space-x-4">
         {% if 'user_id' in session %}
-        <div class="relative inline-block text-center">
-          <button onclick="toggleProfileDropdown()" class="flex items-center justify-center w-12 h-12 bg-blue-600 text-white rounded-full font-bold text-lg shadow">
+        <div class="relative">
+          <button onclick="toggleProfileDropdown()" class="flex items-center justify-center w-10 h-10 bg-indigo-600 text-white rounded-full font-semibold shadow-md hover:bg-indigo-700 transition">
             {{ session['username'][:1] | upper }}
           </button>
-          <p class="mt-1 text-sm font-medium text-gray-800">{{ session['username'] }}</p>
-          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-50">
-            <a href="/logout" class="block px-4 py-2 text-red-600 hover:bg-red-100">🚪 Logout</a>
+          <p class="mt-1 text-xs font-medium text-gray-700 text-center">{{ session['username'] }}</p>
+          <span id="userName" class="hidden">{{ session['username'] }}</span>
+          <span id="userEmail" class="hidden">{{ session['email'] }}</span>
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+            <a href="/logout" class="block px-4 py-2 text-red-600 hover:bg-red-50 transition">🚪 Logout</a>
           </div>
         </div>
         {% else %}
-        <a href="/login-page" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Login</a>
-        <a href="/register-page" class="ml-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Register</a>
+        <a href="/login-page" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition">Login</a>
+        <a href="/register-page" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition">Register</a>
         {% endif %}
       </div>
-    </header>
+    </div>
+  </header>
 
+  <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
     <!-- Mode Toggle -->
-    <div class="flex justify-end m-4">
-      <button id="modeToggleBtn" onclick="toggleMode()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition">
+    <div class="flex justify-end mb-6">
+      <button id="modeToggleBtn" onclick="toggleMode()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">
         🔁 Switch to Quiz Mode
       </button>
     </div>
 
     <!-- Flashcard Generator Mode -->
     <div id="flashcardMode">
-      <!-- Flashcard Input Section -->
-      <section class="bg-white p-8 rounded-xl shadow">
-        <h2 class="text-xl font-semibold mb-4">Create Your Flashcards</h2>
+      <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6">Create Your Flashcards</h2>
 
         <!-- Mode Switcher -->
-        <div class="flex flex-wrap gap-4 mb-6">
-          <button id="textModeBtn" onclick="switchMode('text')" class="bg-blue-600 text-white px-6 py-2 rounded-md font-medium shadow hover:bg-blue-700">📝 Text to Flashcards</button>
-          <button id="audioModeBtn" onclick="switchMode('audio')" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">🎧 Audio to Flashcards</button>
-          <button id="imageModeBtn" onclick="switchMode('image')" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">📸 Image to Flashcards</button>
-          <button id="pdfModeBtn" onclick="switchMode('pdf')" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-md font-medium hover:bg-gray-300">📄 PDF to Flashcards</button>
+        <div class="flex flex-wrap gap-3 mb-6">
+          <button id="textModeBtn" onclick="switchMode('text')" class="mode-btn bg-indigo-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-indigo-700"><span>📝</span> Text to Flashcards</button>
+          <button id="audioModeBtn" onclick="switchMode('audio')" class="mode-btn bg-teal-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-teal-700"><span>🎧</span> Audio to Flashcards</button>
+          <button id="imageModeBtn" onclick="switchMode('image')" class="mode-btn bg-pink-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-pink-700"><span>📸</span> Image to Flashcards</button>
+          <button id="pdfModeBtn" onclick="switchMode('pdf')" class="mode-btn bg-yellow-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-yellow-700"><span>📄</span> PDF to Flashcards</button>
         </div>
 
         <!-- Text Mode Input -->
         <div id="textModeSection">
-          <textarea id="inputText" class="w-full p-4 border rounded-md h-40 mb-4 resize-none" placeholder="Paste your study materials here..."></textarea>
-          <button onclick="generateFlashcards()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold">⚡ Generate Flashcards</button>
+          <textarea id="inputText" class="w-full p-4 border border-gray-300 rounded-lg h-48 mb-4 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="Paste your study materials here..."></textarea>
+          <button onclick="generateFlashcards()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-semibold transition">⚡ Generate Flashcards</button>
         </div>
 
         <!-- Audio Mode Input -->
         <div id="audioModeSection" class="hidden">
-          <label class="block font-medium mb-1">Upload Audio File (.wav/.mp3)</label>
-          <input type="file" id="audioFile" accept="audio/*" class="mb-2 block w-full border rounded p-2" />
-          <button onclick="uploadAudio()" class="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg">⬆️ Upload and Generate Flashcards</button>
-          <p id="uploadStatus" class="text-sm text-gray-600 mt-2"></p>
+          <label class="block font-medium text-gray-700 mb-2">Upload Audio File (.wav/.mp3)</label>
+          <input type="file" id="audioFile" accept="audio/*" class="mb-3 block w-full border border-gray-300 rounded-lg p-2.5 file:bg-teal-600 file:text-white file:border-none file:px-4 file:py-2 file:rounded-lg file:font-medium" />
+          <button onclick="uploadAudio()" class="bg-teal-600 hover:bg-teal-700 text-white py-2.5 px-5 rounded-lg font-medium transition">⬆️ Upload and Generate Flashcards</button>
+          <p id="uploadStatus" class="text-sm text-gray-500 mt-3"></p>
         </div>
 
         <!-- Image Mode Input -->
         <div id="imageModeSection" class="hidden">
-          <label class="block font-medium mb-1">Upload Image File (JPG, PNG)</label>
-          <input type="file" id="imageFile" accept="image/*" class="mb-2 block w-full border rounded p-2" />
-          <button onclick="uploadImage()" class="bg-pink-600 hover:bg-pink-700 text-white py-2 px-4 rounded-lg">📸 Scan and Generate Flashcards</button>
-          <p id="imageStatus" class="text-sm text-gray-600 mt-2"></p>
+          <label class="block font-medium text-gray-700 mb-2">Upload Image File (JPG, PNG)</label>
+          <input type="file" id="imageFile" accept="image/*" class="mb-3 block w-full border border-gray-300 rounded-lg p-2.5 file:bg-pink-600 file:text-white file:border-none file:px-4 file:py-2 file:rounded-lg file:font-medium" />
+          <button onclick="uploadImage()" class="bg-pink-600 hover:bg-pink-700 text-white py-2.5 px-5 rounded-lg font-medium transition">📸 Scan and Generate Flashcards</button>
+          <p id="imageStatus" class="text-sm text-gray-500 mt-3"></p>
         </div>
 
         <!-- PDF Mode Input -->
         <div id="pdfModeSection" class="hidden">
-          <label class="block font-medium mb-1">Upload PDF File</label>
-          <p class="text-sm text-red-600 mb-2">⚠️ Please upload a small PDF (like one chapter). Avoid full books.</p>
-          <input type="file" id="pdfFile" accept="application/pdf" class="mb-2 block w-full border rounded p-2" />
-          <button onclick="uploadPDF()" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded-lg">📄 Extract and Generate Flashcards</button>
-          <p id="pdfStatus" class="text-sm text-gray-600 mt-2"></p>
+          <label class="block font-medium text-gray-700 mb-2">Upload PDF File</label>
+          <p class="text-sm text-red-500 mb-3">⚠️ Please upload a small PDF (like one chapter). Avoid full books.</p>
+          <input type="file" id="pdfFile" accept="application/pdf" class="mb-3 block w-full border border-gray-300 rounded-lg p-2.5 file:bg-yellow-600 file:text-white file:border-none file:px-4 file:py-2 file:rounded-lg file:font-medium" />
+          <button onclick="uploadPDF()" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2.5 px-5 rounded-lg font-medium transition">📄 Extract and Generate Flashcards</button>
+          <p id="pdfStatus" class="text-sm text-gray-500 mt-3"></p>
         </div>
       </section>
     </div>
 
     <!-- Smart Quiz Mode -->
     <div id="quizMode" class="hidden">
-      <section class="bg-white p-8 rounded-xl shadow mt-10">
-        <h2 class="text-xl font-semibold mb-4">🧠 Smart Quiz Mode</h2>
-        <label class="block font-medium mb-2">Select input type:</label>
-        <select id="quizInputType" class="w-full p-2 border rounded-md mb-4">
+      <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mt-8">
+        <h2 class="text-xl font-semibold text-gray-800 mb-6">🧠 Smart Quiz Mode</h2>
+        <label class="block font-medium text-gray-700 mb-2">Select input type:</label>
+        <select id="quizInputType" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
           <option value="">-- Choose input type --</option>
           <option value="text">📝 Text</option>
           <option value="audio">🎧 Audio</option>
           <option value="image">📸 Image</option>
           <option value="pdf">📄 PDF</option>
         </select>
-        <div id="quizInputFields" class="mb-4"></div>
-        <button onclick="startQuizFromInput()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">🚀 Start Quiz</button>
+        <div id="quizInputFields" class="mb-6"></div>
+        <label for="questionCount" class="block font-medium text-gray-700 mb-2">Select Number of Questions:</label>
+        <select id="questionCount" class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+          <option value="5">5 Questions</option>
+          <option value="10">10 Questions</option>
+          <option value="15.clicked {
+    background-color: #4b5563; /* Darker shade for clicked state */
+    color: #ffffff;
+  }
+}15 Questions</option>
+          <option value="max">Max Possible</option>
+          <option value="custom">Custom</option>
+        </select>
+        <input type="number" id="custom...'customQuestionCount" placeholder="Enter custom number" min="1" class="w-full p-3 border border-gray-300 rounded-lg mb-4 hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" />
+        <button onclick="startQuizFromInput()" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-purple-700 transition">🚀 Start Quiz</button>
       </section>
     </div>
 
     <!-- Quiz Modal -->
-    <div id="quizModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
-      <div class="bg-white rounded-xl p-6 max-w-xl w-full relative shadow-lg">
-        <button onclick="closeQuiz()" class="absolute top-3 right-4 text-gray-500">✖️</button>
-        <div class="mb-4">
-          <div class="text-sm text-gray-600 mb-1" id="quizProgress">Question 1 of 10</div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
-            <div id="quizProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 0%;"></div>
+    <div id="quizModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden z-50">
+      <div class="bg-white rounded-xl p-6 sm:p-8 max-w-lg w-full shadow-xl">
+        <button onclick="closeQuiz()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition">✖️</button>
+        <div class="mb-6">
+          <div class="text-sm text-gray-600 mb-2" id="quizProgress">Question 1 of 10</div>
+          <div class="w-full bg-grayindigogray-200 rounded-full h-2.5">
+            <div id="quizProgressBar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%;"></div>
           </div>
         </div>
-        <p id="quizQuestion" class="text-gray-800 font-semibold text-lg mb-4"></p>
-        <div id="quizFeedback" class="text-center text-white py-2 rounded-lg font-semibold mb-4 hidden transition-all duration-300"></div>
-        <label for="userAnswer" class="block font-medium mb-1">Your Answer:</label>
-        <textarea id="userAnswer" class="w-full p-2 border rounded-md mb-4" rows="3" placeholder="Type your answer here..."></textarea>
-        <button onclick="submitQuizAnswer()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">✅ Submit Answer</button>
+        <p id="quizQuestion" class="text-gray-800 font-semibold text-lg mb-6"></p>
+        <div id="quizFeedback" class="text-center text-white py-2.5 rounded-lg font-medium mb-4 hidden transition-all duration-300"></div>
+        <label for="userAnswer" class="block font-medium text-gray-700 mb-2">Your Answer:</label>
+        <textarea id="userAnswer" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" rows="4" placeholder="Type your answer here..."></textarea>
+        <button onclick="submitQuizAnswer()" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-green-700 transition">✅ Submit Answer</button>
       </div>
     </div>
 
     <!-- Flashcard Display & Export -->
     <section class="mt-8">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-semibold">Generated Flashcards</h2>
-        <div class="relative inline-block text-left">
-          <button onclick="toggleExportMenu()" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold">📤 Export Flashcards</button>
-          <div id="exportMenu" class="hidden absolute z-10 right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-200">
-            <button onclick="exportFlashcardsToPDF(); toggleExportMenu()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">📄 Export as PDF</button>
-            <button onclick="exportFlashcardsToCSV(); toggleExportMenu()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">📊 Export as CSV</button>
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-semibold text-gray-800">Generated Flashcards</h2>
+        <div class="relative">
+          <button onclick="toggleExportMenu()" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium transition">📤 Export Flashcards</button>
+          <div id="exportMenu" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+            <button onclick="exportFlashcardsToPDF(); toggleExportMenu()" class="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition">📄 Export as PDF</button>
+            <button onclick="exportFlashcardsToCSV(); toggleExportMenu()" class="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition">📊 Export as CSV</button>
           </div>
         </div>
       </div>
-      <div id="flashcards" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+      <div id="flashcards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </section>
 
+    <!-- Screenshot Warning Modal -->
+    <div id="screenshotWarningModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full text-center shadow-xl">
+        <h2 class="text-xl font-bold text-red-600 mb-4">⚠️ Screenshot Detected</h2>
+        <p class="text-gray-700 mb-6">Screenshots are not allowed during the quiz.<br>The quiz has been automatically closed.</p>
+        <button onclick="closeScreenshotModal()" class="bg-red-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-red-700 transition">Okay</button>
+      </div>
+    </div>
+
     <!-- Footer -->
-    <footer class="text-center mt-8 text-sm text-gray-500">
+    <footer class="text-center mt-12 py-6 text-sm text-gray-500 bg-white rounded-lg shadow-sm">
       Powered by AI • Flashcards made smart
     </footer>
   </div>
 
   <!-- Scripts -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
-
-  <!-- Flashcard Mode Switch Script -->
   <script>
+    document.getElementById('questionCount').addEventListener('change', function () {
+      const customInput = document.getElementById('customQuestionCount');
+      if (this.value === 'custom') {
+        customInput.classList.remove('hidden');
+      } else {
+        customInput.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener("keyup", async (e) => {
+      if (e.key === "PrintScreen") {
+        try {
+          await navigator.clipboard.writeText("⚠️ Screenshot blocked during quiz.");
+        } catch (err) {
+          console.warn("Clipboard overwrite not supported.");
+        }
+        closeQuiz();
+        document.getElementById("screenshotWarningModal").classList.remove("hidden");
+      }
+    });
+
+    function closeScreenshotModal() {
+      document.getElementById("screenshotWarningModal").classList.add("hidden");
+    }
+
     function switchMode(mode) {
       const modes = ['text', 'audio', 'image', 'pdf'];
       modes.forEach(m => {
         const btn = document.getElementById(`${m}ModeBtn`);
         const section = document.getElementById(`${m}ModeSection`);
         if (m === mode) {
-          btn.classList.replace('bg-gray-200', 'bg-blue-600');
-          btn.classList.replace('text-gray-800', 'text-white');
+          if (m === 'audio') {
+            btn.classList.replace('bg-gray-200', 'bg-teal-600');
+            btn.classList.replace('text-gray-700', 'text-white');
+          } else {
+            btn.classList.replace('bg-gray-200', `bg-${m === 'text' ? 'indigo' : m === 'image' ? 'pink' : 'yellow'}-600`);
+            btn.classList.replace('text-gray-700', 'text-white');
+          }
           section.classList.remove('hidden');
         } else {
-          btn.classList.replace('bg-blue-600', 'bg-gray-200');
-          btn.classList.replace('text-white', 'text-gray-800');
+          btn.classList.replace(`bg-${m === 'text' ? 'indigo' : m === 'audio' ? 'teal' : m === 'image' ? 'pink' : 'yellow'}-600`, 'bg-gray-200');
+          btn.classList.replace('text-white', 'text-gray-700');
           section.classList.add('hidden');
         }
       });
@@ -176,7 +268,6 @@
       const flashcardMode = document.getElementById('flashcardMode');
       const quizMode = document.getElementById('quizMode');
       const toggleBtn = document.getElementById('modeToggleBtn');
-
       if (flashcardMode.classList.contains('hidden')) {
         flashcardMode.classList.remove('hidden');
         quizMode.classList.add('hidden');

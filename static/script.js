@@ -421,67 +421,59 @@ async function startQuizFromInput() {
     if (type === 'image') rawText = await flashcardImageInput();
     if (type === 'pdf') rawText = await flashcardPDFInput();
   } catch (err) {
-    alert("Failed to extract text. Try again.");
+    alert("❌ Failed to extract text. Try again.");
     return;
   }
 
   if (!rawText.trim()) {
-    alert("Input is empty or invalid.");
+    alert("⚠️ Input is empty or invalid.");
     return;
   }
 
-  // Generate flashcards from extracted text
-  const res = await fetch('/generate_flashcards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: rawText })
-  });
-
-  const result = await res.json();
-  if (result.status !== 'success' || result.flashcards.length === 0) {
-    alert("Could not generate flashcards. Try with better input.");
-    return;
-  }
-
-  let allFlashcards = result.flashcards;
-  const maxAvailable = allFlashcards.length;
-  let count = maxAvailable;
-
-  // Handle dropdown logic
+  // Determine desired question count
+  let count = 0;
   if (['5', '10', '15'].includes(questionCountOption)) {
-    const selectedCount = parseInt(questionCountOption);
-    if (selectedCount > maxAvailable) {
-      alert(`Only ${maxAvailable} questions available. Starting quiz with all available.`);
-    }
-    count = Math.min(selectedCount, maxAvailable);
+    count = parseInt(questionCountOption);
   } else if (questionCountOption === 'custom') {
     const customCount = parseInt(customCountValue);
     if (isNaN(customCount) || customCount <= 0) {
-      alert("Please enter a valid custom number of questions.");
+      alert("⚠️ Please enter a valid custom number of questions.");
       return;
     }
-    if (customCount > maxAvailable) {
-      alert(`Only ${maxAvailable} questions available. Starting quiz with all available.`);
-    }
-    count = Math.min(customCount, maxAvailable);
+    count = customCount;
   }
-  // "Max Possible" (default fallback) means use all
 
-  // Shuffle and select flashcards
-  allFlashcards = allFlashcards.sort(() => Math.random() - 0.5).slice(0, count);
+  // Request flashcards from backend
+  const res = await fetch('/generate_flashcards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: rawText, count })
+  });
 
-  quizFlashcards = allFlashcards;
+  const result = await res.json();
+  if (result.status !== 'success' || !result.flashcards || result.flashcards.length === 0) {
+    alert("❌ Could not generate flashcards. Try with better input.");
+    return;
+  }
+
+  quizFlashcards = result.flashcards;
+  const maxAvailable = quizFlashcards.length;
+
+  if (count > maxAvailable) {
+    alert(`⚠️ Only ${maxAvailable} questions available. Starting quiz with all available.`);
+  }
+
+  // Shuffle flashcards
+  quizFlashcards = quizFlashcards.sort(() => Math.random() - 0.5);
+
   quizIndex = 0;
   correctCount = 0;
   wrongCount = 0;
-
   quizStartTime = new Date();
 
   showNextQuizCard();
+  enableQuizSecurity();
   document.getElementById("quizModal").classList.remove("hidden");
-
-  enableQuizSecurity(); // Call this right before showing the quiz
-document.getElementById("quizModal").classList.remove("hidden");
 }
 
 

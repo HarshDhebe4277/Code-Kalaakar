@@ -137,34 +137,36 @@
     </div>
 
     <!-- Smart Quiz Mode -->
-    <div id="quizMode" class="hidden">
-      <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mt-8">
-        <h2 class="text-xl font-semibold text-gray-800 mb-6">🧠 Smart Quiz Mode</h2>
-        <label class="block font-medium text-gray-700 mb-2">Select input type:</label>
-        <select id="quizInputType" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
-          <option value="">-- Choose input type --</option>
-          <option value="text">📝 Text</option>
-          <option value="audio">🎧 Audio</option>
-          <option value="image">📸 Image</option>
-          <option value="pdf">📄 PDF</option>
-        </select>
-        <div id="quizInputFields" class="mb-6"></div>
-        <label for="questionCount" class="block font-medium text-gray-700 mb-2">Select Number of Questions:</label>
-        <select id="questionCount" class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
-          <option value="5">5 Questions</option>
-          <option value="10">10 Questions</option>
-          <option value="15.clicked {
-    background-color: #4b5563; /* Darker shade for clicked state */
-    color: #ffffff;
-  }
-}15 Questions</option>
-          <option value="max">Max Possible</option>
-          <option value="custom">Custom</option>
-        </select>
-        <input type="number" id="custom...'customQuestionCount" placeholder="Enter custom number" min="1" class="w-full p-3 border border-gray-300 rounded-lg mb-4 hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" />
-        <button onclick="startQuizFromInput()" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-purple-700 transition">🚀 Start Quiz</button>
-      </section>
-    </div>
+   <div id="quizMode" class="hidden">
+  <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mt-8">
+    <h2 class="text-xl font-semibold text-gray-800 mb-6">🧠 Smart Quiz Mode</h2>
+
+    <label class="block font-medium text-gray-700 mb-2">Select input type:</label>
+    <select id="quizInputType" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+      <option value="">-- Choose input type --</option>
+      <option value="text">📝 Text</option>
+      <option value="audio">🎧 Audio</option>
+      <option value="image">📸 Image</option>
+      <option value="pdf">📄 PDF</option>
+    </select>
+
+    <div id="quizInputFields" class="mb-6"></div>
+
+    <label for="questionCount" class="block font-medium text-gray-700 mb-2">Select Number of Questions:</label>
+    <select id="questionCount" class="w-full p-3 border border-gray-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+      <option value="5">5 Questions</option>
+      <option value="10">10 Questions</option>
+      <option value="15">15 Questions</option>
+      <option value="max">Max Possible</option>
+      <option value="custom">Custom</option>
+    </select>
+
+    <input type="number" id="customQuestionCount" placeholder="Enter custom number" min="1" class="w-full p-3 border border-gray-300 rounded-lg mb-4 hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" />
+
+    <button onclick="startQuizFromInput()" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-purple-700 transition">🚀 Start Quiz</button>
+  </section>
+</div>
+
 
     <!-- Quiz Modal -->
     <div id="quizModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden z-50">

@@ -107,40 +107,64 @@ def generate_flashcards():
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
+        count = data.get('count', 0)
+
         if not text:
             return jsonify({'status': 'error', 'message': 'Please enter study notes.', 'flashcards': []}), 400
 
+        # Check cache
         if text in flashcard_cache:
-            return jsonify({'status': 'success', 'flashcards': flashcard_cache[text]})
+            flashcards = flashcard_cache[text]
+        else:
+            prompt = (
+                "Generate informative flashcards from this content.\n"
+                "Format each flashcard as:\n"
+                "Question: <question>\nAnswer: <answer>\n"
+                "No other output.\n\n"
+                f"Content:\n{text}"
+            )
 
-        prompt = (
-            "Generate informative flashcards from this content.\n"
-            "Format each flashcard as:\n"
-            "Question: <question>\nAnswer: <answer>\n"
-            "No other output.\n\n"
-            f"Content:\n{text}"
-        )
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(prompt)
+            output = response.text.strip()
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        output = response.text.strip()
+            matches = re.findall(
+                r'Question[:>]\s*(.+?)\s*Answer[:>]\s*(.+?)(?=\nQuestion[:>]|$)',
+                output,
+                flags=re.IGNORECASE | re.DOTALL
+            )
 
-        matches = re.findall(r'Question[:>]\s*(.+?)\s*Answer[:>]\s*(.+?)(?=\n|$)', output, flags=re.IGNORECASE | re.DOTALL)
+            flashcards = []
+            for q, a in matches:
+                q, a = q.strip(), a.strip()
+                if len(q) > 5 and len(a) > 5:
+                    flashcards.append({
+                        'id': len(flashcards) + 1,
+                        'question': q,
+                        'answer': a
+                    })
 
-        flashcards = []
-        for q, a in matches:
-            q, a = q.strip(), a.strip()
-            if len(q) > 5 and len(a) > 5:
-                flashcards.append({'id': len(flashcards) + 1, 'question': q, 'answer': a})
+            if not flashcards:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No flashcards found. Try different input.',
+                    'flashcards': []
+                }), 400
 
-        if not flashcards:
-            return jsonify({'status': 'error', 'message': 'No flashcards found. Try different input.', 'flashcards': []}), 400
+            flashcard_cache[text] = flashcards
 
-        flashcard_cache[text] = flashcards
+        # Limit the flashcards based on requested count
+        if isinstance(count, int) and count > 0:
+            flashcards = flashcards[:count]
+
         return jsonify({'status': 'success', 'flashcards': flashcards})
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': f'Something went wrong: {e}', 'flashcards': []}), 500
+        return jsonify({
+            'status': 'error',
+            'message': f'Something went wrong: {str(e)}',
+            'flashcards': []
+        }), 500
 
 
 @app.route('/transcribe_audio', methods=['POST'])

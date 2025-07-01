@@ -1,6 +1,4 @@
 from flask import Flask, request, render_template, jsonify, redirect, url_for, session
-from flask_dance.contrib.google import make_google_blueprint, google
-from flask_dance.consumer.storage.session import SessionStorage
 from flask_session import Session
 import google.generativeai as genai
 import re
@@ -22,20 +20,8 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Only for local development
 app.config['SESSION_COOKIE_SAMESITE'] = "Lax"
 Session(app)
 
-# Google OAuth setup
-google_bp = make_google_blueprint(
-    client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
-    scope=[
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "openid"
-    ],
-    redirect_to="google_authorized",  # 👈 use view function name here
-    storage=SessionStorage()
-)
 
-app.register_blueprint(google_bp, url_prefix="/login")
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 db = SQLAlchemy(app)
@@ -53,35 +39,6 @@ class User(db.Model):
 
 
 # === Auth Routes ===
-@app.route("/login/google/authorized")
-def google_authorized():
-    if not google.authorized:
-        return redirect(url_for("login_page"))
-
-    resp = google.get("/oauth2/v2/userinfo")
-    print("Google userinfo response:", resp.text)
-
-    if not resp.ok:
-        return redirect(url_for("login_page"))
-
-    user_info = resp.json()
-    email = user_info["email"]
-    name = user_info.get("name", "Google User")
-
-    # Check if user already exists
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        user = User(email=email, username=name)
-        db.session.add(user)
-        db.session.commit()
-
-    # Login the user
-    session['user_id'] = user.id
-    session['email'] = user.email
-    session['username'] = user.username
-
-    return redirect(url_for("index"))
-
 
 @app.route('/login', methods=['POST'])
 def login():

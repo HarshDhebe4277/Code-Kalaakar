@@ -74,7 +74,7 @@ python-dotenv for environment variables
 
 ### 1. Clone the Repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/HarshDhebe4277/Code-Kalaakar
 cd quizcraft
 ```
 

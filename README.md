@@ -137,10 +137,13 @@ Visit [http://localhost:5000](http://localhost:5000) in your browser.
 - jsPDF + autoTable  
 
 ---
-
 ## 🌐 Link to Deployed Application
 
-👉 https://code-kalaakar-3.onrender.com/ 
+👉 https://code-kalaakar-3.onrender.com/
+
+> **Note:** Due to resource limitations on Render (which offers only ~500MB free storage), the audio-related features powered by Whisper (like *Audio to Flashcards* and *Audio-based Quiz Generation*) are not functional in the deployed version.  
+> These features require more disk space than Render allows.  
+> ✅ To see these features in action, please watch the demo walkthrough video below.
 
 ---
 

@@ -149,7 +149,7 @@ Visit [http://localhost:5000](http://localhost:5000) in your browser.
 
 
 ## 🎥 Walkthrough Video
-- Watch a full walkthrough of QuizCraft here: [Watch Now](https://drive.google.com/file/d/1Q6Qa8lBa8FbTmsBtN4uh9LgG3Rc3qg3T/view?usp=sharing)
+- Watch a full walkthrough of QuizCraft here: [Watch Now](https://youtu.be/U5VrUPWq-Vc)
 
 ---
 
